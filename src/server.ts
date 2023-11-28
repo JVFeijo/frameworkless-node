@@ -1,6 +1,10 @@
 import * as http from 'http'
 
 const server = http.createServer((req, res) => {
+    if (req.url === "/api/upload" && req.headers['content-type']?.includes('multipart/form-data')) {
+        res.writeHead(200)
+        return res.end(JSON.stringify(`route for uploading files`))
+    }
     if (req.url === '/api' && req.method === 'GET') {
         res.writeHead(200)
         return res.end(JSON.stringify(`route: ${req.url}, method: GET`))

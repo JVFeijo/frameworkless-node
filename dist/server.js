@@ -25,6 +25,12 @@ var __importStar = (this && this.__importStar) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const http = __importStar(require("http"));
 const server = http.createServer((req, res) => {
+    var _a;
+    console.log(req.headers);
+    if (req.url === "/api/upload" && ((_a = req.headers['content-type']) === null || _a === void 0 ? void 0 : _a.includes('multipart/form-data'))) {
+        res.writeHead(200);
+        return res.end(JSON.stringify(`route for uploading files`));
+    }
     if (req.url === '/api' && req.method === 'GET') {
         res.writeHead(200);
         return res.end(JSON.stringify(`route: ${req.url}, method: GET`));
