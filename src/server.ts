@@ -14,9 +14,8 @@ const server = http.createServer(async (req, res) => {
         const newFileName = uuidv4()
         const form = formidable({ 
             fileWriteStreamHandler: () => getLocalStorageStream(newFileName),
-            filter: ({ mimetype }) => {
-            return mimetype === 'application/pdf'
-        } })
+            filter: ({ mimetype }) => mimetype === 'application/pdf'
+        })
         await form.parse(req)
         res.writeHead(200)
         return res.end(JSON.stringify(`file received`))
