@@ -1,9 +1,16 @@
 import * as http from 'http'
+import * as fs from 'fs'
+import { v4 as uuidv4 } from 'uuid'
+import * as path from 'path'
 
 const server = http.createServer((req, res) => {
     if (req.url === "/api/upload" && req.headers['content-type']?.includes('multipart/form-data')) {
+        const fileId = uuidv4()
+        
+        const wStream = fs.createWriteStream(path.resolve(`./files/${fileId}`))
+        req.pipe(wStream)
         res.writeHead(200)
-        return res.end(JSON.stringify(`route for uploading files`))
+        return res.end(JSON.stringify(`file received`))
     }
     if (req.url === '/api' && req.method === 'GET') {
         res.writeHead(200)
