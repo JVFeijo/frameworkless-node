@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "build": "tsc",
     "start": "tsc && node dist/server.js"
@@ -11,11 +12,13 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@types/formidable": "^3.4.5",
     "@types/node": "^20.10.0",
     "@types/uuid": "^9.0.7",
     "typescript": "^5.3.2"
   },
   "dependencies": {
+    "formidable": "^3.5.1",
     "uuid": "^9.0.1"
   }
 }
