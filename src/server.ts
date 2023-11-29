@@ -2,13 +2,18 @@ import * as http from 'http'
 import * as fs from 'fs'
 import { v4 as uuidv4 } from 'uuid'
 import * as path from 'path'
+import formidable from 'formidable'
 
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
     if (req.url === "/api/upload" && req.headers['content-type']?.includes('multipart/form-data')) {
         const fileId = uuidv4()
-        
-        const wStream = fs.createWriteStream(path.resolve(`./files/${fileId}`))
-        req.pipe(wStream)
+        const form = formidable({ fileWriteStreamHandler: () => {
+            return fs.createWriteStream(path.resolve(`./files/${fileId}`))
+        }, filter: ({ mimetype }) => {
+            console.log('mimetype: ', mimetype)
+            return mimetype === 'application/pdf'
+        } })
+        await form.parse(req)
         res.writeHead(200)
         return res.end(JSON.stringify(`file received`))
     }
