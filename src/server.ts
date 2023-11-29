@@ -3,14 +3,18 @@ import * as fs from 'fs'
 import { v4 as uuidv4 } from 'uuid'
 import * as path from 'path'
 import formidable from 'formidable'
+import { Writable } from 'stream'
+
+function getLocalStorageStream (filename: string): Writable {
+    return fs.createWriteStream(path.resolve(`./files/${filename}`))
+}
 
 const server = http.createServer(async (req, res) => {
     if (req.url === "/api/upload" && req.headers['content-type']?.includes('multipart/form-data')) {
-        const fileId = uuidv4()
-        const form = formidable({ fileWriteStreamHandler: () => {
-            return fs.createWriteStream(path.resolve(`./files/${fileId}`))
-        }, filter: ({ mimetype }) => {
-            console.log('mimetype: ', mimetype)
+        const newFileName = uuidv4()
+        const form = formidable({ 
+            fileWriteStreamHandler: () => getLocalStorageStream(newFileName),
+            filter: ({ mimetype }) => {
             return mimetype === 'application/pdf'
         } })
         await form.parse(req)
