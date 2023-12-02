@@ -21,6 +21,9 @@
   "dependencies": {
     "amqplib": "^0.10.3",
     "formidable": "^3.5.1",
+    "pg": "^8.11.3",
+    "reflect-metadata": "^0.1.13",
+    "typeorm": "^0.3.17",
     "uuid": "^9.0.1"
   }
 }

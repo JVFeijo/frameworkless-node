@@ -5,25 +5,16 @@ import * as path from 'path'
 import formidable from 'formidable'
 import { Writable } from 'stream'
 import * as amqplib from 'amqplib'
+import { DataSource } from 'typeorm'
 
 function getLocalStorageStream (filename: string): Writable {
     return fs.createWriteStream(path.resolve(`./files/${filename}`))
 }
 
-async function rabbitmq() {
-    const connection = await amqplib.connect('amqp://localhost')
-    const ch1 = await connection.createChannel()
-    const queueName = 'files'
-    await ch1.assertQueue(queueName)
-
-    return {
-        sendFileNotification: (msg: string) => ch1.sendToQueue(queueName, Buffer.from(msg))
-    }
-
-}
+let sendFileNotification: (msg: string) => boolean
+let db: DataSource
 
 const server = http.createServer(async (req, res) => {
-    const { sendFileNotification } = await rabbitmq()
     if (req.url === "/api/upload" && req.headers['content-type']?.includes('multipart/form-data')) {
         const newFileName = uuidv4()
         const form = formidable({ 
@@ -60,4 +51,23 @@ const server = http.createServer(async (req, res) => {
     return res.end(JSON.stringify('default'))
 })
 
-server.listen(3000)
+server.listen(3000, async () => {
+    const connection = await amqplib.connect('amqp://localhost')
+    const ch1 = await connection.createChannel()
+    const queueName = 'files'
+    await ch1.assertQueue(queueName)
+
+    sendFileNotification = (msg: string) => ch1.sendToQueue(queueName, Buffer.from(msg))
+
+    const PostgresDataSource = new DataSource({
+        type: "postgres",
+        host: "localhost",
+        port: 5432,
+        username: "postgres",
+        password: "mysecretpassword",
+        database: "postgres",
+        entities: [],
+    })
+
+    db = await PostgresDataSource.initialize()
+})
