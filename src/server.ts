@@ -6,6 +6,8 @@ import formidable from 'formidable'
 import { Writable } from 'stream'
 import * as amqplib from 'amqplib'
 import { DataSource } from 'typeorm'
+import * as nodemailer from 'nodemailer'
+import { EventEmitter } from 'events'
 
 function getLocalStorageStream (filename: string): Writable {
     return fs.createWriteStream(path.resolve(`./files/${filename}`))
@@ -13,6 +15,7 @@ function getLocalStorageStream (filename: string): Writable {
 
 let sendFileNotification: (msg: string) => boolean
 let db: DataSource
+let eventBroker: EventEmitter
 
 const server = http.createServer(async (req, res) => {
     if (req.url === "/api/upload" && req.headers['content-type']?.includes('multipart/form-data')) {
@@ -22,9 +25,9 @@ const server = http.createServer(async (req, res) => {
             filter: ({ mimetype }) => mimetype === 'application/pdf'
         })
         await form.parse(req)
-        sendFileNotification('You have a new file')
         res.writeHead(200)
-        return res.end(JSON.stringify(`file received`))
+        res.end(JSON.stringify(`file received`))
+        return eventBroker.emit('fileUploaded', 'You have a new file')
     }
     if (req.url === '/api' && req.method === 'GET') {
         const matches = req.url.match(/\/api\/users\/([0-9]+)/)
@@ -70,4 +73,27 @@ server.listen(3000, async () => {
     })
 
     db = await PostgresDataSource.initialize()
+
+    const transporter = nodemailer.createTransport({
+        host: 'smtp.ethereal.email',
+        port: 587,
+        auth: {
+            user: 'gerard.nolan37@ethereal.email',
+            pass: 'dZW55B7WN9qJUg2QpK'
+        }
+    });
+
+    function sendFileNotificationEmail(msg: string) {
+        return transporter.sendMail({
+            from: 'fromfakemail@mail.com',
+            to: "tofakemail@mail.com",
+            subject: msg,
+            text: 'A new file was uploaded. Go check it out.'
+        })
+    }
+
+    eventBroker = new EventEmitter()
+
+    eventBroker.on('fileUploaded', sendFileNotification)
+    eventBroker.on('fileUploaded', sendFileNotificationEmail)
 })
