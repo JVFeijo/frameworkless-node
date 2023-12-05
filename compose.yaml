@@ -1,0 +1,26 @@
+services:
+  web:
+    restart: on-failure
+    build: .
+    ports:
+      - 3000:3000
+    depends_on:
+      postgres:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+  rabbitmq:
+    image: rabbitmq:3
+    expose:
+      - 5672
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 2s
+      timeout: 3s
+      retries: 5
+  postgres:
+    image: postgres:latest
+    environment:
+      - POSTGRES_PASSWORD=mysecretpassword
+    expose:
+      - 5432

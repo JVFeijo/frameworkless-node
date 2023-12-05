@@ -55,16 +55,9 @@ const server = http.createServer(async (req, res) => {
 })
 
 server.listen(3000, async () => {
-    const connection = await amqplib.connect('amqp://localhost')
-    const ch1 = await connection.createChannel()
-    const queueName = 'files'
-    await ch1.assertQueue(queueName)
-
-    sendFileNotification = (msg: string) => ch1.sendToQueue(queueName, Buffer.from(msg))
-
     const PostgresDataSource = new DataSource({
         type: "postgres",
-        host: "localhost",
+        host: "postgres",
         port: 5432,
         username: "postgres",
         password: "mysecretpassword",
@@ -73,6 +66,13 @@ server.listen(3000, async () => {
     })
 
     db = await PostgresDataSource.initialize()
+
+    const connection = await amqplib.connect('amqp://guest:guest@rabbitmq:5672')
+    const ch1 = await connection.createChannel()
+    const queueName = 'files'
+    await ch1.assertQueue(queueName)
+
+    sendFileNotification = (msg: string) => ch1.sendToQueue(queueName, Buffer.from(msg))
 
     const transporter = nodemailer.createTransport({
         host: 'smtp.ethereal.email',
