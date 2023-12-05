@@ -6,13 +6,16 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "start": "tsc && node dist/server.js"
+    "local": "tsc && node dist/server.js",
+    "start": "tsc && NODE_ENV=dev node dist/server.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
     "@types/amqplib": "^0.10.4",
+    "@types/axios": "^0.14.0",
+    "@types/dotenv": "^8.2.0",
     "@types/formidable": "^3.4.5",
     "@types/node": "^20.10.0",
     "@types/nodemailer": "^6.4.14",
@@ -21,6 +24,8 @@
   },
   "dependencies": {
     "amqplib": "^0.10.3",
+    "axios": "^1.6.2",
+    "dotenv": "^16.3.1",
     "formidable": "^3.5.1",
     "nodemailer": "^6.9.7",
     "pg": "^8.11.3",

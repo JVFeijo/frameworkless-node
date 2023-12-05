@@ -8,6 +8,9 @@ import * as amqplib from 'amqplib'
 import { DataSource } from 'typeorm'
 import * as nodemailer from 'nodemailer'
 import { EventEmitter } from 'events'
+import axios from 'axios'
+import * as dotenv from 'dotenv'
+dotenv.config({ path: process.env.NODE_ENV !== 'dev' ? '.env.local' : '.env.dev' })
 
 function getLocalStorageStream (filename: string): Writable {
     return fs.createWriteStream(path.resolve(`./files/${filename}`))
@@ -16,6 +19,16 @@ function getLocalStorageStream (filename: string): Writable {
 let sendFileNotification: (msg: string) => boolean
 let db: DataSource
 let eventBroker: EventEmitter
+
+type UserData = {
+    data: {
+        id: number,
+        email: string,
+        first_name: string,
+        last_name: string,
+        avatar: string
+    }
+}
 
 const server = http.createServer(async (req, res) => {
     if (req.url === "/api/upload" && req.headers['content-type']?.includes('multipart/form-data')) {
@@ -29,11 +42,14 @@ const server = http.createServer(async (req, res) => {
         res.end(JSON.stringify(`file received`))
         return eventBroker.emit('fileUploaded', 'You have a new file')
     }
-    if (req.url === '/api' && req.method === 'GET') {
+    if (req.url && req.method === 'GET') {
         const matches = req.url.match(/\/api\/users\/([0-9]+)/)
         if (matches !== null) {
             const userId = matches[1]
-            
+            const requestUrl = `${process.env.USERS_API_URL}/${userId}`
+            const { data: userData } = await axios.get<UserData>(requestUrl)
+            res.writeHead(200)
+            return res.end(JSON.stringify(userData))
         }
         res.writeHead(200)
         return res.end(JSON.stringify(`route: ${req.url}, method: GET`))
@@ -57,7 +73,7 @@ const server = http.createServer(async (req, res) => {
 server.listen(3000, async () => {
     const PostgresDataSource = new DataSource({
         type: "postgres",
-        host: "postgres",
+        host: `${process.env.POSTGRES_URL}`,
         port: 5432,
         username: "postgres",
         password: "mysecretpassword",
@@ -67,7 +83,7 @@ server.listen(3000, async () => {
 
     db = await PostgresDataSource.initialize()
 
-    const connection = await amqplib.connect('amqp://guest:guest@rabbitmq:5672')
+    const connection = await amqplib.connect(`amqp://${process.env.RABBIT_URL}`)
     const ch1 = await connection.createChannel()
     const queueName = 'files'
     await ch1.assertQueue(queueName)
