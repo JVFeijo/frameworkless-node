@@ -21,13 +21,16 @@ let db: DataSource
 let eventBroker: EventEmitter
 
 type UserData = {
-    data: {
-        id: number,
-        email: string,
-        first_name: string,
-        last_name: string,
-        avatar: string
-    }
+    id: number,
+    email: string,
+    first_name: string,
+    last_name: string,
+    avatar: string
+}
+
+function getBasicUserData(user: UserData): Omit<UserData, 'avatar' | 'id'> {
+    const { email, first_name, last_name } = user
+    return { email, first_name, last_name }
 }
 
 const server = http.createServer(async (req, res) => {
@@ -47,9 +50,9 @@ const server = http.createServer(async (req, res) => {
         if (matches !== null) {
             const userId = matches[1]
             const requestUrl = `${process.env.USERS_API_URL}/${userId}`
-            const { data: userData } = await axios.get<UserData>(requestUrl)
+            const { data: { data: userData }} = await axios.get<{ data: UserData }>(requestUrl)
             res.writeHead(200)
-            return res.end(JSON.stringify(userData))
+            return res.end(JSON.stringify(getBasicUserData(userData)))
         }
         res.writeHead(200)
         return res.end(JSON.stringify(`route: ${req.url}, method: GET`))
