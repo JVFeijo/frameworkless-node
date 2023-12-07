@@ -3,7 +3,7 @@ import * as fs from 'fs'
 import { v4 as uuidv4 } from 'uuid'
 import * as path from 'path'
 import formidable from 'formidable'
-import { Writable } from 'stream'
+import { Readable, Writable } from 'stream'
 import * as amqplib from 'amqplib'
 import { DataSource } from 'typeorm'
 import * as nodemailer from 'nodemailer'
@@ -12,8 +12,20 @@ import axios from 'axios'
 import * as dotenv from 'dotenv'
 dotenv.config({ path: process.env.NODE_ENV !== 'dev' ? '.env.local' : '.env.dev' })
 
-function getLocalStorageStream (filename: string): Writable {
-    return fs.createWriteStream(path.resolve(`./files/${filename}`))
+
+function getLocalStorageReadStream(filename: string): Readable {
+    const filePath = path.resolve(`./files/${filename}`)
+    return fs.createReadStream(filePath)
+}
+
+function getLocalStorageWriteStream(filename: string): Writable {
+    const filePath = path.resolve(`./files/${filename}`)
+    return fs.createWriteStream(filePath)
+}
+
+function fileExists(filename: string): boolean {
+    const filePath = path.resolve(`./files/${filename}`)
+    return fs.existsSync(filePath)
 }
 
 let sendFileNotification: (msg: string) => boolean
@@ -37,7 +49,7 @@ const server = http.createServer(async (req, res) => {
     if (req.url === "/api/upload" && req.headers['content-type']?.includes('multipart/form-data')) {
         const newFileName = uuidv4()
         const form = formidable({ 
-            fileWriteStreamHandler: () => getLocalStorageStream(newFileName),
+            fileWriteStreamHandler: () => getLocalStorageWriteStream(newFileName),
             filter: ({ mimetype }) => mimetype === 'application/pdf'
         })
         await form.parse(req)
@@ -46,13 +58,33 @@ const server = http.createServer(async (req, res) => {
         return eventBroker.emit('fileUploaded', 'You have a new file')
     }
     if (req.url && req.method === 'GET') {
-        const matches = req.url.match(/\/api\/users\/([0-9]+)/)
+        const matches = req.url.match(/\/api\/user\/([0-9]+)/)
         if (matches !== null) {
             const userId = matches[1]
             const requestUrl = `${process.env.USERS_API_URL}/${userId}`
             const { data: { data: userData }} = await axios.get<{ data: UserData }>(requestUrl)
             res.writeHead(200)
             return res.end(JSON.stringify(getBasicUserData(userData)))
+        }
+        const avatarMatches = req.url.match(/\/api\/user\/avatar\/([0-9]+)/)
+        if (avatarMatches !== null) {
+            const userId = avatarMatches[1]
+            const avatarImageName = `${userId}-image.jpg`
+            if (fileExists(avatarImageName)) {
+                const avatarImageStream = getLocalStorageReadStream(avatarImageName)
+                return avatarImageStream.pipe(res)
+            } else {
+                const requestUrl = `${process.env.USERS_API_URL}/${userId}`
+                const { data: { data: userData }} = await axios.get<{ data: UserData }>(requestUrl)
+                const avatarUrl = userData.avatar
+                const response = await axios.get<Buffer>(avatarUrl, { responseType: 'arraybuffer' })
+                const imageBuffer = response.data
+                const imageStream = Readable.from(imageBuffer)
+                imageStream.pipe(res)
+                const localImageStream = getLocalStorageWriteStream(avatarImageName)
+                const imageStream2 = Readable.from(imageBuffer)
+                return imageStream2.pipe(localImageStream)
+            }
         }
         res.writeHead(200)
         return res.end(JSON.stringify(`route: ${req.url}, method: GET`))
