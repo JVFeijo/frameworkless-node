@@ -10,6 +10,7 @@ import * as nodemailer from 'nodemailer'
 import { EventEmitter } from 'events'
 import axios from 'axios'
 import * as dotenv from 'dotenv'
+
 dotenv.config({ path: process.env.NODE_ENV !== 'dev' ? '.env.local' : '.env.dev' })
 
 
@@ -66,6 +67,7 @@ const server = http.createServer(async (req, res) => {
             res.writeHead(200)
             return res.end(JSON.stringify(getBasicUserData(userData)))
         }
+        
         const avatarMatches = req.url.match(/\/api\/user\/avatar\/([0-9]+)/)
         if (avatarMatches !== null) {
             const userId = avatarMatches[1]
@@ -85,6 +87,14 @@ const server = http.createServer(async (req, res) => {
                 const imageStream2 = Readable.from(imageBuffer)
                 return imageStream2.pipe(localImageStream)
             }
+        }
+
+        const downloadFilesMatches = req.url.match(/\/api\/course\/([0-9]+)\/activity\/([0-9]+)\/files/)
+        if (downloadFilesMatches !== null) {
+            const courseId = downloadFilesMatches[1]
+            const activityId = downloadFilesMatches[2]
+            const zippedFiles = getLocalStorageReadStream(`activity-${courseId}-${activityId}-tasks.zip`)
+            return zippedFiles.pipe(res)
         }
         res.writeHead(200)
         return res.end(JSON.stringify(`route: ${req.url}, method: GET`))
