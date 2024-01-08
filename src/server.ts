@@ -46,8 +46,20 @@ function getBasicUserData(user: UserData): Omit<UserData, 'avatar' | 'id'> {
     return { email, first_name, last_name }
 }
 
+function getNextTaskId(): number {
+    return Math.random() * 10
+}
+
 const server = http.createServer(async (req, res) => {
     if (req.url === "/api/upload" && req.headers['content-type']?.includes('multipart/form-data')) {
+        const adminUploadRouteMatch = req.url.match(/\/api\/admin\/upload\/course\/([0-9]+)\/activity\/([0-9]+)/)
+        if (adminUploadRouteMatch !== null) {
+            const courseId = adminUploadRouteMatch[1]
+            const activityId = adminUploadRouteMatch[2]
+            const taskId = getNextTaskId()
+            const writefileStream = getLocalStorageWriteStream(`/activities/${courseId}-${activityId}-task-${taskId}`)
+            req.pipe(writefileStream)
+        }
         const newFileName = uuidv4()
         const form = formidable({ 
             fileWriteStreamHandler: () => getLocalStorageWriteStream(newFileName),
