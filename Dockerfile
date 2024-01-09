@@ -6,7 +6,7 @@ COPY . /app
 
 WORKDIR /app
 
-RUN ["mkdir", "files"]
+RUN ["mkdir", "files", "files/activities"]
 
 RUN ["npm", "i"]
 

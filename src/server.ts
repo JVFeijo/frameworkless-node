@@ -10,6 +10,7 @@ import * as nodemailer from 'nodemailer'
 import { EventEmitter } from 'events'
 import axios from 'axios'
 import * as dotenv from 'dotenv'
+import archiver from 'archiver'
 
 dotenv.config({ path: process.env.NODE_ENV !== 'dev' ? '.env.local' : '.env.dev' })
 
@@ -50,25 +51,43 @@ function getNextTaskId(): number {
     return Math.random() * 10
 }
 
+interface ZipActivityTasksEvent {
+    courseId: string
+    activityId: string
+}
+
+function zipActivityTasks ({ courseId, activityId }: ZipActivityTasksEvent) {
+    const filesDir = path.resolve(`./files/activities`)
+    return fs.readdir(filesDir, (err, files) => {
+        const regex = new RegExp(`${courseId}-${activityId}-task.*`)
+        const taskFileNames = files.filter(fileName => regex.test(fileName))
+        if (taskFileNames.length == 0) return;
+        const zipFileStream = getLocalStorageWriteStream(`${courseId}-${activityId}-tasks.zip`)
+        const archive = archiver('zip', { zlib: { level: 9 }})
+        archive.pipe(zipFileStream)
+        taskFileNames.forEach(fileName => archive.file(path.resolve(filesDir, fileName), { name: fileName }))
+        return archive.finalize()
+    })
+}
+
 const server = http.createServer(async (req, res) => {
-    if (req.url === "/api/upload" && req.headers['content-type']?.includes('multipart/form-data')) {
-        const adminUploadRouteMatch = req.url.match(/\/api\/admin\/upload\/course\/([0-9]+)\/activity\/([0-9]+)/)
+    
+    if (req.url && req.headers['content-type']?.includes('multipart/form-data')) {
+        const adminUploadRouteMatch = req.url.match(/\/api\/upload\/admin\/course\/([0-9]+)\/activity\/([0-9]+)/)
         if (adminUploadRouteMatch !== null) {
             const courseId = adminUploadRouteMatch[1]
             const activityId = adminUploadRouteMatch[2]
             const taskId = getNextTaskId()
-            const writefileStream = getLocalStorageWriteStream(`/activities/${courseId}-${activityId}-task-${taskId}`)
-            req.pipe(writefileStream)
+            const fileName = `/activities/${courseId}-${activityId}-task-${taskId}`
+            const form = formidable({ 
+                fileWriteStreamHandler: () => getLocalStorageWriteStream(fileName),
+                filter: ({ mimetype }) => mimetype === 'application/pdf'
+            })
+            await form.parse(req)
+            res.writeHead(200)
+            res.end(JSON.stringify(`task file received`))
+            return eventBroker.emit('taskUploaded', { courseId, activityId })
         }
-        const newFileName = uuidv4()
-        const form = formidable({ 
-            fileWriteStreamHandler: () => getLocalStorageWriteStream(newFileName),
-            filter: ({ mimetype }) => mimetype === 'application/pdf'
-        })
-        await form.parse(req)
-        res.writeHead(200)
-        res.end(JSON.stringify(`file received`))
-        return eventBroker.emit('fileUploaded', 'You have a new file')
     }
     if (req.url && req.method === 'GET') {
         const matches = req.url.match(/\/api\/user\/([0-9]+)/)
@@ -105,7 +124,7 @@ const server = http.createServer(async (req, res) => {
         if (downloadFilesMatches !== null) {
             const courseId = downloadFilesMatches[1]
             const activityId = downloadFilesMatches[2]
-            const zippedFiles = getLocalStorageReadStream(`activity-${courseId}-${activityId}-tasks.zip`)
+            const zippedFiles = getLocalStorageReadStream(`${courseId}-${activityId}-tasks.zip`)
             return zippedFiles.pipe(res)
         }
         res.writeHead(200)
@@ -145,7 +164,7 @@ server.listen(3000, async () => {
     const queueName = 'files'
     await ch1.assertQueue(queueName)
 
-    sendFileNotification = (msg: string) => ch1.sendToQueue(queueName, Buffer.from(msg))
+    sendFileNotification = () => ch1.sendToQueue(queueName, Buffer.from('A new task is available'))
 
     const transporter = nodemailer.createTransport({
         host: 'smtp.ethereal.email',
@@ -156,17 +175,18 @@ server.listen(3000, async () => {
         }
     });
 
-    function sendFileNotificationEmail(msg: string) {
+    function sendFileNotificationEmail() {
         return transporter.sendMail({
             from: 'fromfakemail@mail.com',
             to: "tofakemail@mail.com",
-            subject: msg,
+            subject: 'A new task is available',
             text: 'A new file was uploaded. Go check it out.'
         })
     }
 
     eventBroker = new EventEmitter()
 
-    eventBroker.on('fileUploaded', sendFileNotification)
-    eventBroker.on('fileUploaded', sendFileNotificationEmail)
+    eventBroker.on('taskUploaded', sendFileNotification)
+    eventBroker.on('taskUploaded', sendFileNotificationEmail)
+    eventBroker.on('taskUploaded', zipActivityTasks)
 })
